@@ -1,6 +1,8 @@
 import socket
 import sys
 import traceback
+import os.path
+import mimetypes
 
 def response_ok(body=b"This is a minimal response", mimetype=b"text/plain"):
     """
@@ -30,7 +32,7 @@ def response_method_not_allowed():
     """Returns a 405 Method Not Allowed response"""
 
     return b"\r\n".join([
-        b"HTTP/1.1 403 Method Not Allowed",
+        b"HTTP/1.1 405 Method Not Allowed",
         b"",
         b"You can't do that on this server!",
     ])
@@ -40,7 +42,11 @@ def response_not_found():
     """Returns a 404 Not Found response"""
 
     # TODO: Implement response_not_found
-    return b""
+    return b"\r\n".join([
+    	b"HTTP/1.1 404 Page Not Found",
+    	b"",
+    	b"I could not find that page!",
+    	])
 
 
 def parse_request(request):
@@ -96,10 +102,26 @@ def response_path(path):
     # If the path is "make_time.py", then you may OPTIONALLY return the
     # result of executing `make_time.py`. But you need only return the
     # CONTENTS of `make_time.py`.
-    
-    content = b"not implemented"
-    mime_type = b"not implemented"
-
+    #1: The path indicates a FILE that exists inside of webroot.
+    #2: The path indicates a DIRECTORY that exists inside of webroot.
+    #3: The path does NOT indicate a FILE or DIRECTORY that exists inside of webroot
+    #If path was '/sample.txt'
+    absolute_path = os.path.join(os.getcwd(), "webroot", path.strip('/'))
+    #Then absolute path is now 'C:\Users\navgill/pythonweb/socket-server-hw/socket-http-server-homework'
+    if os.path.isfile(absolute_path):
+    	content = b""
+    	with open(absolute_path, "rb") as f:
+    		byte = f.read(1)
+    		while byte != b"":
+    			content += byte
+    			byte = f.read(1)
+    	mime_type = mimetypes.guess_type(absolute_path)[0].encode()
+    elif os.path.isdir(absolute_path):
+    	# Option 1: content = str(os.listdir(absolute_path))
+    	content = " ".join(os.listdir(absolute_path)).encode()
+    	mime_type = b"text/plain"
+    else:
+    	raise NameError
     return content, mime_type
 
 
@@ -134,6 +156,7 @@ def server(log_buffer=sys.stderr):
 
                     # TODO: Use response_path to retrieve the content and the mimetype,
                     # based on the request path.
+                    body, mimetype = response_path(path)
 
                     # TODO:
                     # If response_path raised
@@ -141,9 +164,11 @@ def server(log_buffer=sys.stderr):
                     # use the content and mimetype from response_path to build a 
                     # response_ok.
                     response = response_ok(
-                        body=b"Welcome to my web server",
-                        mimetype=b"text/plain"
+                        body= body,
+                        mimetype=mimetype
                     )
+                except NameError:
+                	response = response_not_found()
                 except NotImplementedError:
                     response = response_method_not_allowed()
 
